@@ -1,7 +1,11 @@
 import { styled } from "../utils/theme";
 import Link from "next/link";
 
-import { CardTitle, CardOrg, CardDesc } from "./Card";
+import { CardTitle, CardOrg, CardDesc, CardIcon } from "./Card";
+import { useContext } from "react";
+
+import { Search as SearchContext } from "../utils/state/Search";
+import { getIcon } from "../utils/helperFunctions";
 
 const Title = styled(CardTitle)`
   display: inline;
@@ -37,20 +41,32 @@ interface IProps {
   title: string;
   org: string;
   desc: string;
+  url: string;
+  iconUrl: string;
 }
 
 const AutocompleteResult = (props: IProps) => {
-  const links = props.id.split(".");
+  const { search, updateSearch, updateResults, updateClear } = useContext(
+    SearchContext
+  );
+
+  const [org, ...pkg] = props.id.split(".");
   return (
     <Result>
       <span>
-        <Link href="/pkg/[org]/[pkg]" as={`/pkg/${links[0]}/${links[1]}`}>
-          <a>
-            <Title>{props.title}</Title>
+        <Link href="/pkg/[org]/[pkg]" as={`/pkg/${org}/${pkg.join(".")}`}>
+          <a onClick={() => updateClear()}>
+            <Title>
+              <CardIcon
+                src={props.iconUrl || getIcon(props.url, true)}
+                alt=""
+              />
+              {props.title}
+            </Title>
           </a>
         </Link>
-        <Link href="/pkg/[org]" as={`/pkg/${links[0]}`}>
-          <a>
+        <Link href="/pkg/[org]" as={`/pkg/${org}`}>
+          <a onClick={() => updateClear()}>
             <Org>{props.org}</Org>
           </a>
         </Link>

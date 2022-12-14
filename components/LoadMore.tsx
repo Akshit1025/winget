@@ -1,4 +1,15 @@
 import { styled } from "../utils/theme";
+import React from "react";
+import { keyframes } from "styled-components";
+
+const rotate = keyframes`
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+`;
 
 const Button = styled.button`
   display: block;
@@ -10,6 +21,8 @@ const Button = styled.button`
   font-weight: bold;
   font-size: 20px;
   cursor: pointer;
+  overflow: visible;
+  padding-right: 37px;
   &::before {
     content: "";
     position: absolute;
@@ -21,27 +34,45 @@ const Button = styled.button`
     right: -12px;
     top: 50%;
     transform: translateY(-50%) translateY(1px);
-    transition: width 250ms cubic-bezier(0.68, 0, 0.41, 1.71);
+    transition: width 250ms ease;
   }
   &:focus {
     outline: none;
-    &::before {
-      background: ${(x) => x.theme.accent};
-    }
   }
-  &:hover::before {
+  &:hover::before,
+  &:focus::before {
     width: calc(100% + 32px);
+    transition: width 250ms cubic-bezier(0.26, 1.29, 0.7, 1.18);
   }
   img {
-    margin-left: 6px;
-    transform: translateY(1px);
+    position: absolute;
+    margin-left: 13px;
+    margin-top: 6px;
+    &.spinner {
+      margin-left: 10px;
+      margin-top: 2px;
+      animation: ${rotate} 1s linear infinite;
+    }
   }
 `;
 
-const LoadMore = (props) => {
+interface IProps extends React.HTMLProps<HTMLButtonElement> {
+  isLoading: boolean;
+}
+
+const LoadMore = ({ isLoading, onClick }: IProps) => {
   return (
-    <Button {...props}>
-      Load more packages <img src={require("./icons/plus.svg")} alt="" />
+    <Button onClick={onClick}>
+      Load more packages
+      {isLoading ? (
+        <img
+          className="spinner"
+          src={require("./icons/spinner.svg")}
+          alt="Loading"
+        />
+      ) : (
+        <img src={require("./icons/plus.svg")} alt="Load More" />
+      )}
     </Button>
   );
 };

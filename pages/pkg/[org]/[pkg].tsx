@@ -1,7 +1,7 @@
 import Head from "next/head";
-import Card, { CardContainer, Add } from "../../../components/Card";
+import { CardContainer, Add } from "../../../components/Card";
 import { Container, Row, Col, media } from "styled-bootstrap-grid";
-import useSWR, { useSWRPages } from "swr";
+import useSWR from "swr";
 import getPackages, {
   IResponse,
   IPackage,
@@ -9,13 +9,15 @@ import getPackages, {
 } from "../../../api/getPackages";
 import { useState, useContext } from "react";
 import { useRouter } from "next/router";
-import DownloadBar from "../../../components/DownloadBar";
-import Error from "../../_error";
+import DownloadModal from "../../../components/DownloadModal";
+import Tag from "../../../components/Tag";
 import { styled } from "../../../utils/theme";
 import Header, { SearchBar } from "../../../components/Header";
-import generateClipboard from "../../../utils/generateClipboard";
-import { Downloads } from "../../../components/StateWrapper";
+import generateClipboard from "../../../utils/clipboard";
+import { Downloads } from "../../../utils/state/Downloads";
 import { toast } from "react-toastify";
+import Link from "next/link";
+import Custom404 from "../../404";
 
 const TopBar = styled(SearchBar)`
   padding: 91px 0 !important;
@@ -93,9 +95,22 @@ const AddCard = styled(VersionsCard)`
     font-weight: 500;
     font-size: 20px;
   }
-  ${Add} {
-    top: 50%;
-    transform: translateY(-50%);
+  button {
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+  }
+  &.active {
+    border: 2px solid ${(x) => x.theme.accent};
+  }
+`;
+
+const ShowMoreVersions = styled.p`
+  font-size: 14px;
+  text-align: center;
+  margin: 20px 0px 0px;
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
   }
 `;
 
@@ -155,30 +170,39 @@ export default function Pkg(props) {
   const router = useRouter();
   const { org, pkg } = router.query;
   const initialData = props.data;
-  const { data } = useSWR(`${org}/${pkg}`, getPackages, { initialData });
+  const { data } = useSWR(`packages/${org}/${pkg}`, getPackages, {
+    initialData,
+  });
   const { packages, addPackage, removePackage } = useContext(Downloads);
-  if ((data as IResponseSingle).package === null) {
-    return <Error statusCode={404} />;
+  const [showMoreVersions, setShowMoreVersions] = useState(false);
+
+  if ((data as IResponseSingle).Package == null) {
+    return <Custom404 />;
   }
 
-  const p = data.package as IPackage;
+  const p = data.Package as IPackage;
 
-  const inDownloads = packages.find((e) => e.Id === p.Id);
+  const inDownloads = packages.find((e) => e.Package.Id === p.Id);
+  const versionsAmount = 4;
+  const versionsLength = p.Versions.length;
 
   return (
     <div className="container">
       <Head>
-        <title>{p.latest.Name} | winget.run</title>
+        <title>Download and install {p.Latest.Name} with winget</title>
         <meta
           name="description"
-          content={`View package details about ${p.latest.Name} on winget.run`}
+          content={
+            p.Latest.Description ||
+            `Download and install ${p.Latest.Name} and other packages with winget`
+          }
         />
-        <meta name="twitter:title" content={`${p.latest.Name} on winget.run`} />
+        <meta name="twitter:title" content={`${p.Latest.Name} on winget.run`} />
         <meta
           name="twitter:description"
           content={
-            p.latest.Description ||
-            `View package details about ${p.latest.Name} on winget.run`
+            p.Latest.Description ||
+            `Download and install ${p.Latest.Name} and other packages with winget`
           }
         />
       </Head>
@@ -189,12 +213,16 @@ export default function Pkg(props) {
               <Row>
                 <Col col={12}>
                   <h1>
-                    {p.latest.Name}
-                    <span>v{p.latest.Version}</span>
+                    {p.Latest.Name}
+                    <span>v{p.Versions[0]}</span>
                   </h1>
-                  <h2>{p.latest.Publisher}</h2>
-                  {p.latest.Homepage && (
-                    <a href={p.latest.Homepage}>
+                  <Link href="/pkg/[org]" as={`/pkg/${org}`}>
+                    <a>
+                      <h2>{p.Latest.Publisher}</h2>
+                    </a>
+                  </Link>
+                  {p.Latest.Homepage && (
+                    <a href={p.Latest.Homepage} target="_blank">
                       <h3>
                         Visit website
                         <img
@@ -214,7 +242,7 @@ export default function Pkg(props) {
         <Container>
           <CustomRow>
             <Col col={12} lg={4} xl={3}>
-              <AddCard>
+              <AddCard className={inDownloads && "active"}>
                 <SectionHeader>
                   {inDownloads ? "Remove from list" : "Add to list"}
                 </SectionHeader>
@@ -228,17 +256,20 @@ export default function Pkg(props) {
               </AddCard>
               <VersionsCard>
                 <SectionHeader>Versions</SectionHeader>
-                {p.versions.map((e) => (
-                  <Version>
+                {p.Versions.slice(
+                  0,
+                  showMoreVersions ? versionsLength : versionsAmount
+                ).map((e) => (
+                  <Version key={e}>
                     {e}
                     <span>
                       <img
                         role="button"
                         tabIndex={0}
                         onClick={() => {
-                          generateClipboard([p.Id], [e]);
+                          generateClipboard([{ Package: p, Version: e }]);
                           toast.dark(
-                            `Copied ${p.latest.Name}@${e} to clipboard!`
+                            `Copied ${p.Latest.Name}@${e} to clipboard!`
                           );
                         }}
                         src={require("../../../components/icons/copy.svg")}
@@ -248,6 +279,19 @@ export default function Pkg(props) {
                     </span>
                   </Version>
                 ))}
+                {}
+
+                {versionsLength > versionsAmount && !showMoreVersions && (
+                  <ShowMoreVersions onClick={() => setShowMoreVersions(true)}>
+                    Show {versionsLength - versionsAmount} older versions
+                  </ShowMoreVersions>
+                )}
+
+                {versionsLength > versionsAmount && showMoreVersions && (
+                  <ShowMoreVersions onClick={() => setShowMoreVersions(false)}>
+                    Hide {versionsLength - versionsAmount} older versions
+                  </ShowMoreVersions>
+                )}
               </VersionsCard>
             </Col>
             <Col col={12} lg={8} xl={7}>
@@ -259,8 +303,10 @@ export default function Pkg(props) {
                     role="button"
                     tabIndex={0}
                     onClick={() => {
-                      generateClipboard([p.Id]);
-                      toast.dark(`Copied ${p.latest.Name} to clipboard!`);
+                      generateClipboard([
+                        { Package: p, Version: p.Versions[0] },
+                      ]);
+                      toast.dark(`Copied ${p.Latest.Name} to clipboard!`);
                     }}
                     src={require("../../../components/icons/copy.svg")}
                     alt=""
@@ -268,26 +314,34 @@ export default function Pkg(props) {
                   />
                 </CodeBlock>
               </section>
-              {p.latest.Description && (
+              {p.Latest.Description && (
                 <section>
-                  <SectionHeader>About {p.latest.Name}</SectionHeader>
-                  <SectionInfo>{p.latest.Description}</SectionInfo>
+                  <SectionHeader>About {p.Latest.Name}</SectionHeader>
+                  <SectionInfo>{p.Latest.Description}</SectionInfo>
                 </section>
               )}
-              {p.latest.License && (
+              {p.Latest.Tags?.length > 0 && (
+                <section>
+                  <SectionHeader>Tags</SectionHeader>
+                  {p.Latest.Tags.map((x) => (
+                    <Tag key={x}>{x}</Tag>
+                  ))}
+                </section>
+              )}
+              {p.Latest.License && (
                 <section>
                   <SectionHeader>License</SectionHeader>
                   <SectionInfo>
-                    {p.latest.LicenseUrl ? (
-                      <a href={p.latest.LicenseUrl}>
+                    {p.Latest.LicenseUrl ? (
+                      <a href={p.Latest.LicenseUrl}>
                         <img
                           src={require("../../../components/icons/link.svg")}
                           alt=""
                         />
-                        {p.latest.License}
+                        {p.Latest.License}
                       </a>
                     ) : (
-                      p.latest.License
+                      p.Latest.License
                     )}
                   </SectionInfo>
                 </section>
@@ -295,14 +349,17 @@ export default function Pkg(props) {
             </Col>
           </CustomRow>
         </Container>
-        <DownloadBar />
+        <DownloadModal />
       </main>
     </div>
   );
 }
 
 export async function getServerSideProps({ params }) {
-  const data = await getPackages(`${params.org}/${params.pkg}`);
-
-  return { props: { data } };
+  try {
+    const data = await getPackages(`packages/${params.org}/${params.pkg}`);
+    return { props: { data } };
+  } catch {
+    return { props: { data: { Package: null } } };
+  }
 }
